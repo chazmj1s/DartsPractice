@@ -1,68 +1,130 @@
-# Darts Practice Tracker
-### .NET MAUI Blazor — Stub Project
+# 🎯 Darts Practice Tracker
+
+A personal skills development project built to track and analyze darts practice sessions. Developed as a self-directed learning exercise to explore **.NET MAUI Blazor Hybrid** application development — a stack I had no prior experience with before starting this project.
+
+> **Note:** This app was conceived, designed, and built in a single day as a learning exercise. It is actively used for personal practice tracking and continues to be refined.
 
 ---
 
-## What's included
+## Screenshots
 
-| File | Purpose |
-|------|---------|
-| `Models/SessionModels.cs` | All data models: `CricketSession`, `X01Session`, stat POCOs |
-| `Services/SessionHistoryService.cs` | Singleton storing sessions; computes aggregate stats; stubs MAUI `Preferences` persistence |
-| `Pages/Index.razor` | Home screen — game picker |
-| `Pages/Cricket.razor` | Cricket game tracker |
-| `Pages/X01.razor` | 301 / 501 tracker (parameterized route `/x01/301` and `/x01/501`) |
-| `Pages/History.razor` | Aggregate stats + session log |
-| `Shared/X01StatsPanel.razor` | Reusable stats grid for 301/501 |
-| `wwwroot/css/app.css` | Full app styles — dark pub-board aesthetic |
+### Home Screen
+![Home Screen](ScreenShots/HomeScreen.JPG)
+
+### Cricket In Play
+![Cricket](ScreenShots/Cricket%20in%20play.JPG)
+
+### 301 In Play
+![301](ScreenShots/301%20in%20play.JPG)
 
 ---
 
-## Tracked stats
+## What it does
 
-### Cricket
-- **Ochre count** — visits to the oche per game
-- **Total marks thrown** — across all 7 targets (15–20, Bull)
-- Target-by-target mark tracker (Single / Double / Triple buttons)
-- Session duration
+Tracks practice sessions across three darts games with per-dart granularity:
 
-### 301 & 501
-- **Darts to double-in** — how many darts before the opening double lands
-- **Time to double-in** — wall clock from session start to landing the double
-- **Average score per ochre** — classic 3-dart average, counted only post double-in
-- **Time to double-out** — from double-in to the finishing double
-- **Bust count** — number of bust ochres per leg
+### 🏏 Cricket
+- Unified input/scoreboard — each target row shows live chalk-style mark indicators alongside tap-to-score buttons
+- Marks update live on every dart tap (`/` → `X` → `⊗`)
+- SVG chalk-on-felt mark graphics rendered inline
+- Tracks **ochres thrown** and **total marks** to complete the game
+
+### 3️⃣0️⃣1️⃣ / 5️⃣0️⃣1️⃣ X01
+- **SIDO** (Single In / Double Out) and **DIDO** (Double In / Double Out) mode selection
+  - 301 defaults to DIDO, 501 defaults to SIDO
+- Live **Left**, **Scored**, and **Out** counters update on every dart tap
+- Automatic bust detection — disables number buttons and flips Miss → **Bust** mid-ochre
+- Finishing double detected live — locks remaining dart slots and activates **✔ Finish** button
+- Tracks **darts to double-in**, **avg score per ochre**, **time to double-out**, **total darts**, and **finishing dart** (1st, 2nd, or 3rd)
+
+### Checkout Suggestions
+- Inline checkout panel appears automatically when remaining score ≤ 170
+- Shows up to 3 standard routes (T20/T19/D16 style) with triples in gold, doubles in blue
+- Updates live with every dart thrown
 
 ---
 
-## Setup
+## Tech Stack
 
-**Requirements**
-- Visual Studio 2022 17.8+ with .NET MAUI workload  
-- .NET 8 SDK
+| Layer | Technology |
+|-------|-----------|
+| Framework | .NET 10 MAUI Blazor Hybrid |
+| Language | C# 12 |
+| UI | Blazor components + CSS (dark felt theme) |
+| Graphics | Inline SVG with CSS filters |
+| Database | SQLite via sqlite-net-pcl |
+| Platform | Windows (iOS architecture in place) |
+| IDE | Visual Studio 2026 Community |
 
-**Steps**
-```bash
-# Clone / place project folder
-dotnet restore DartsPractice/DartsPractice.csproj
+---
 
-# Run on Android emulator
-dotnet build -t:Run -f net8.0-android
+## Architecture
 
-# Run on Windows
-dotnet build -t:Run -f net8.0-windows10.0.19041.0
+```
+DartsPractice/
+├── Models/              # Session models, DartThrow, stats POCOs
+├── Data/                # SQLite table DTOs (DbModels.cs)
+├── Services/            # DartsDatabase, SessionHistoryService, CheckoutService
+├── Pages/               # Cricket.razor, X01.razor, History.razor, Index.razor
+├── Shared/              # DartInputPad, ChalkMark, CheckoutPanel, MainLayout
+├── Platforms/Windows/   # MAUI Windows bootstrapper
+└── wwwroot/             # index.html, app.css
 ```
 
+**Key design decisions:**
+- `DartInputPad` is a fully reusable component shared across Cricket and X01 with a `TwoColumn` layout parameter
+- `ChalkMark` renders SVG chalk-style score indicators (empty box → `/` → `X` → `⊗`) as a standalone Blazor component
+- `CheckoutService` is a static lookup table covering all valid finishes from 2–170
+- `SessionHistoryService` maintains an in-memory cache over a SQLite backend, loaded once at startup via `MainLayout`
+- Bust detection, live scoring, and finish recognition all happen dart-by-dart via `OnDartAdded` callbacks — no waiting for Enter
+
 ---
 
-## Architecture notes & next steps
+## What I learned
 
-1. **Persistence** — `SessionHistoryService` stubs MAUI `Preferences` (string key-value). For production, replace with SQLite via `sqlite-net-pcl` or EF Core + SQLite provider. The polymorphic JSON converter in `SessionBaseConverter` is also stubbed — wire up a `$type` discriminator for full round-trip serialization.
+This project was my first exposure to .NET MAUI and Blazor Hybrid development. Key learning areas:
 
-2. **Double-out flow** — Currently the X01 page assumes that entering a score of exactly 0 means double-out. In a future iteration, add a "Double Out" button that starts the double-out timer separately, letting you track *attempts* before the final dart lands.
+- **MAUI project structure** — platform bootstrapping, `MauiProgram.cs`, `BlazorWebView` setup
+- **Blazor component lifecycle** — `OnParametersSet`, `StateHasChanged`, parent/child callback patterns
+- **Blazor gotchas** — `RenderFragment` closure capture issues, SVG namespace conflicts with Razor syntax, component keying (`@key`) for forced re-instantiation
+- **SQLite in MAUI** — `sqlite-net-pcl`, async CRUD, `FileSystem.AppDataDirectory` for cross-platform paths
+- **Touch-first UI design** — 52px minimum touch targets, `touch-action: manipulation` for zero tap delay, bust/finish state management
 
-3. **Statistics charts** — The ochre log (`OchreLog` list) is wired up and ready for a sparkline or bar chart component (e.g. Telerik Blazor, Syncfusion, or a lightweight JS interop chart).
+---
 
-4. **Multiple legs / matches** — Sessions are currently single-leg. A `Match` wrapper class with multiple `X01Session` legs (best-of-N) would be a natural extension.
+## Status & Roadmap
 
-5. **Navigation** — `MainLayout.razor` uses a top nav bar. For mobile, consider switching to a bottom tab bar using MAUI Shell tabs alongside the BlazorWebView.
+- ✅ Cricket — fully functional
+- ✅ 301 / 501 — fully functional
+- ✅ SQLite history and aggregate stats
+- ✅ Windows (Surface Pro touchscreen tested)
+- 🔲 iOS deployment (pending Mac build machine)
+- 🔲 Match mode (multiple legs)
+- 🔲 Multiplayer / opponent tracking
+
+---
+
+## Development Approach
+
+This project was built using **AI-assisted development** with Anthropic's Claude as a
+collaborative coding partner. Claude was used for code generation, architecture decisions,
+and debugging — while all product decisions, UX feedback, and requirements came from me
+as the developer.
+
+This was not a "generate and accept" workflow. Throughout development I:
+- Caught and corrected bad UX decisions before they shipped
+- Made direct hands-on code modifications to meet exact specifications
+- Debugged build and runtime errors independently
+- Drove all game logic requirements from domain knowledge as an active darts player
+
+The ability to effectively direct, evaluate, iterate with, and where necessary override
+AI tools is increasingly a core developer skill. This project demonstrates that full
+workflow in practice — from initial architecture through real-world testing and refinement.
+
+---
+
+## About this project
+
+I've been a competitive darts player in a local league for several years. During a period of career transition I decided to build tools I actually use rather than follow tutorials. This app is used at real practice sessions and continues to evolve based on real feedback from actual use.
+
+*Built by a senior .NET developer (C#, ASP.NET MVC, SQL Server) expanding into mobile/hybrid development.*
