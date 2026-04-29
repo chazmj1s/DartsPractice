@@ -1,0 +1,226 @@
+@page "/cricket"
+@using DartsPractice.Models
+@using DartsPractice.Services
+@inject SessionHistoryService History
+
+<div class="game-page cricket-page">
+
+    <div class="page-header">
+        <h2>Cricket</h2>
+        @if (_session is not null && !_session.IsComplete)
+        {
+            <div class="session-meta">
+                Ochre <strong>@(_session.OchreCount + 1)</strong> &nbsp;|&nbsp;
+                Closed <strong>@_session.ClosedTargets/7</strong>
+            </div>
+        }
+    </div>
+
+    @if (_session is null)
+    {
+        <div class="start-screen">
+            <p>Ready to practice Cricket?</p>
+            <button class="btn btn-primary" @onclick="StartSession">Start Session</button>
+        </div>
+    }
+    else if (_session.IsComplete)
+    {
+        <div class="result-card">
+            <div class="result-icon">✅</div>
+            <h3>Game Complete!</h3>
+            <div class="stat-grid">
+                <div class="stat-item"><span class="stat-label">Ochres thrown</span><span class="stat-value">@_session.OchreCount</span></div>
+                <div class="stat-item"><span class="stat-label">Total marks</span><span class="stat-value">@_session.TotalMarks</span></div>
+                <div class="stat-item"><span class="stat-label">Duration</span><span class="stat-value">@FormatDuration(_session.Duration)</span></div>
+            </div>
+            <div class="result-actions">
+                <button class="btn btn-primary" @onclick="StartSession">Play Again</button>
+                <a href="/history" class="btn btn-secondary">View History</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- ── Dart slots ── -->
+        <div class="dart-slots">
+            @for (int i = 0; i < 3; i++)
+            {
+                var idx  = i;
+                var dart = idx < _darts.Count ? _darts[idx] : (DartThrow?)null;
+                bool isNext = idx == _darts.Count;
+                <div class="dart-slot @(dart.HasValue ? "filled" : "") @(isNext ? "active" : "")">
+                    <span class="slot-label">@(idx + 1)</span>
+                    @if (dart.HasValue)
+                    {
+                        <span class="slot-val">@DartLabel(dart.Value)</span>
+                    }
+                    else
+                    {
+                        <span class="slot-empty">—</span>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- ── Unified target rows ── -->
+        <div class="cricket-unified">
+            @foreach (var target in CricketTargets)
+            {
+                var key    = target.Key;
+                var marks  = _session.Marks[key];
+                var closed = marks >= 3;
+                var num    = target.Number;
+                bool isBull = num == 25;
+                bool full   = _darts.Count >= 3;
+
+                <div class="cu-row @(closed ? "cu-closed" : "")">
+                    <!-- Chalk mark indicator -->
+                    <ChalkMark Marks="marks" />
+
+                    <!-- Number = single hit -->
+                    <button class="cu-btn cu-single" disabled="@(closed || full)"
+                            @onclick="() => AddDart(num, 1)">
+                        @target.Display
+                    </button>
+
+                    <!-- Double -->
+                    <button class="cu-btn cu-d" disabled="@(closed || full)"
+                            @onclick="() => AddDart(num, 2)">D</button>
+
+                    <!-- Triple (not for Bull) -->
+                    @if (!isBull)
+                    {
+                        <button class="cu-btn cu-t" disabled="@(closed || full)"
+                                @onclick="() => AddDart(num, 3)">T</button>
+                    }
+                    else
+                    {
+                        <span class="cu-spacer"></span>
+                    }
+                </div>
+            }
+
+            <!-- Miss row -->
+            <div class="cu-row cu-miss-row">
+                <span class="cu-mark"></span>
+                <button class="cu-btn cu-miss" disabled="@(_darts.Count >= 3)"
+                        @onclick="() => AddDart(0, 1)">Miss</button>
+            </div>
+        </div>
+
+        <!-- ── Actions ── -->
+        <div class="pad-actions">
+            <button class="btn-back" @onclick="BackDart">← Back</button>
+            <button class="btn-enter" @onclick="CommitOchre" disabled="@(_darts.Count == 0)">
+                Enter Ochre (@_darts.Count/3)
+            </button>
+        </div>
+
+        <button class="btn btn-abandon" @onclick="AbandonSession">Abandon Session</button>
+    }
+</div>
+
+@code {
+    private record CricketTarget(string Key, string Display, int Number);
+
+    private static readonly CricketTarget[] CricketTargets =
+    {
+        new("20","20",20), new("19","19",19), new("18","18",18),
+        new("17","17",17), new("16","16",16), new("15","15",15),
+        new("Bull","Bull",25)
+    };
+
+    private CricketSession? _session;
+    private List<DartThrow> _darts = new();
+
+    private void StartSession()
+    {
+        _session = new CricketSession { StartedAt = DateTime.Now };
+        _darts.Clear();
+    }
+
+    private void AddDart(int number, int multiplier)
+    {
+        if (_session is null || _darts.Count >= 3) return;
+        _darts.Add(new DartThrow(number, multiplier));
+
+        // Apply mark immediately so display updates live
+        if (number != 0)
+        {
+            var key = number == 25 ? "Bull" : number.ToString();
+            if (_session.Marks.ContainsKey(key) && _session.Marks[key] < 3)
+            {
+                var added = Math.Min(multiplier, 3 - _session.Marks[key]);
+                _session.Marks[key] += added;
+            }
+        }
+    }
+
+    private void BackDart()
+    {
+        if (_session is null) return;
+
+        if (_darts.Count > 0)
+        {
+            // Undo the last dart's mark
+            var last = _darts[_darts.Count - 1];
+            if (last.Number != 0)
+            {
+                var key = last.Number == 25 ? "Bull" : last.Number.ToString();
+                if (_session.Marks.ContainsKey(key))
+                {
+                    var added = Math.Min(last.Multiplier, 3 - Math.Max(0, _session.Marks[key] - last.Multiplier));
+                    _session.Marks[key] = Math.Max(0, _session.Marks[key] - last.Multiplier);
+                }
+            }
+            _darts.RemoveAt(_darts.Count - 1);
+        }
+        else
+        {
+            AbandonSession();
+        }
+    }
+
+    private async Task CommitOchre()
+    {
+        if (_session is null || _darts.Count == 0) return;
+
+        _session.OchreCount++;
+
+        foreach (var dart in _darts)
+        {
+            if (dart.Number == 0) continue;
+            var key = dart.Number == 25 ? "Bull" : dart.Number.ToString();
+            _session.OchreLog.Add(new CricketOchreEntry(_session.OchreCount, key, dart.Multiplier));
+        }
+
+        _darts.Clear();
+
+        if (_session.AllClosed)
+            await FinalizeSessionAsync();
+    }
+
+    private async Task FinalizeSessionAsync()
+    {
+        if (_session is null) return;
+        _session.CompletedAt = DateTime.Now;
+        _session.IsComplete = true;
+        await History.SaveCricketSessionAsync(_session);
+    }
+
+    private void AbandonSession()
+    {
+        _session = null;
+        _darts.Clear();
+    }
+
+
+    private static string DartLabel(DartThrow d)
+    {
+        var n = d.Number == 0 ? "Miss" : d.Number == 25 ? "Bull" : d.Number.ToString();
+        return d.Multiplier switch { 2 => $"D{n}", 3 => $"T{n}", _ => n };
+    }
+
+    private string FormatDuration(TimeSpan? ts) =>
+        ts.HasValue ? $"{(int)ts.Value.TotalMinutes}m {ts.Value.Seconds}s" : "—";
+}

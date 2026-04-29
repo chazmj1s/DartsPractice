@@ -1,0 +1,113 @@
+@page "/history"
+@using DartsPractice.Models
+@using DartsPractice.Services
+@inject SessionHistoryService HistoryService
+
+<div class="history-page">
+    <div class="page-header">
+        <h2>History</h2>
+        @if (HistoryService.All.Any())
+        {
+            <button class="btn btn-danger-sm" @onclick="ClearHistory">Clear All</button>
+        }
+    </div>
+
+    @if (!HistoryService.All.Any())
+    {
+        <div class="empty-state">
+            <p>No sessions yet. Play a game to start tracking!</p>
+        </div>
+    }
+    else
+    {
+        @if (_cricketStats.SessionsPlayed > 0)
+        {
+            <section class="stats-section">
+                <h3 class="section-title">🏏 Cricket</h3>
+                <div class="stat-grid">
+                    <div class="stat-item"><span class="stat-label">Sessions</span><span class="stat-value">@_cricketStats.SessionsPlayed</span></div>
+                    <div class="stat-item"><span class="stat-label">Avg ochres</span><span class="stat-value">@_cricketStats.AvgOchres.ToString("F1")</span></div>
+                    <div class="stat-item"><span class="stat-label">Best ochres</span><span class="stat-value">@_cricketStats.BestOchres</span></div>
+                    <div class="stat-item"><span class="stat-label">Avg marks</span><span class="stat-value">@_cricketStats.AvgTotalMarks.ToString("F1")</span></div>
+                </div>
+            </section>
+        }
+
+        @if (_s301Stats.SessionsPlayed > 0)
+        {
+            <section class="stats-section">
+                <h3 class="section-title">301</h3>
+                <X01StatsPanel Stats="_s301Stats" />
+            </section>
+        }
+
+        @if (_s501Stats.SessionsPlayed > 0)
+        {
+            <section class="stats-section">
+                <h3 class="section-title">501</h3>
+                <X01StatsPanel Stats="_s501Stats" />
+            </section>
+        }
+
+        <section class="stats-section">
+            <h3 class="section-title">Session Log</h3>
+            <div class="session-log">
+                @foreach (var session in HistoryService.All.AsEnumerable().Reverse())
+                {
+                    <div class="session-row">
+                        <span class="session-game">@GameLabel(session.Game)</span>
+                        <span class="session-date">@session.StartedAt.ToString("MMM d, h:mm tt")</span>
+                        <span class="session-status @(session.IsComplete ? "complete" : "abandoned")">
+                            @(session.IsComplete ? "✓" : "—")
+                        </span>
+                        @if (session is CricketSession c && c.IsComplete)
+                        {
+                            <span class="session-detail">@c.OchreCount ochres · @c.TotalMarks marks</span>
+                        }
+                        else if (session is X01Session x && x.IsComplete)
+                        {
+                            <span class="session-detail">
+                                Avg @x.AveragePerOchre.ToString("F1") · out @FormatDuration(x.TimeToDoubleOut)
+                            </span>
+                        }
+                        <button class="session-delete" @onclick="() => DeleteSession(session.Id)">✕</button>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private CricketStats _cricketStats = new();
+    private X01Stats _s301Stats = new();
+    private X01Stats _s501Stats = new();
+
+    protected override void OnInitialized()
+    {
+        _cricketStats = HistoryService.GetCricketStats();
+        _s301Stats    = HistoryService.GetX01Stats(GameType.ThreeOhOne);
+        _s501Stats    = HistoryService.GetX01Stats(GameType.FiveOhOne);
+    }
+
+    private async Task ClearHistory()
+    {
+        await HistoryService.ClearAllAsync();
+        _cricketStats = new();
+        _s301Stats    = new();
+        _s501Stats    = new();
+    }
+
+    private async Task DeleteSession(Guid id) => await HistoryService.DeleteSessionAsync(id);
+
+    private string GameLabel(GameType g) => g switch
+    {
+        GameType.Cricket    => "Cricket",
+        GameType.ThreeOhOne => "301",
+        GameType.FiveOhOne  => "501",
+        _ => g.ToString()
+    };
+
+    private string FormatDuration(TimeSpan? ts) =>
+        ts.HasValue ? $"{(int)ts.Value.TotalMinutes}m {ts.Value.Seconds}s" : "—";
+}

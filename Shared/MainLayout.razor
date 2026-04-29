@@ -1,0 +1,29 @@
+@inherits LayoutComponentBase
+@inject SessionHistoryService History
+
+<div class="app-shell">
+    <header class="app-header">
+        <div class="header-inner">
+            <span class="bullseye-icon">🎯</span>
+            <h1 class="app-title">DARTS PRACTICE</h1>
+        </div>
+        <nav class="main-nav">
+            <NavLink href="/" Match="NavLinkMatch.All" class="nav-link">Home</NavLink>
+            <NavLink href="/cricket" class="nav-link">Cricket</NavLink>
+            <NavLink href="/x01/301" class="nav-link">301</NavLink>
+            <NavLink href="/x01/501" class="nav-link">501</NavLink>
+            <NavLink href="/history" class="nav-link">History</NavLink>
+        </nav>
+    </header>
+
+    <main class="main-content">
+        @Body
+    </main>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await History.LoadAsync();
+    }
+}
